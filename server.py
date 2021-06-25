@@ -43,3 +43,66 @@ with SimpleXMLRPCServer((server_ip, server_port), allow_none=True) as server:
                     ]
                 },
             ]
+        def tambah_history(self, idx_nasabah, nominal, uraian):
+            self.nasabah[idx_nasabah]["history"].append({
+                "tanggal": datetime.date.today().strftime("%d/%m/%Y"), "uraian": uraian,
+                "nominal": nominal
+            })
+
+        def check_pin(self, idx_nasabah, pin):
+            if pin == self.nasabah[idx_nasabah]["pin"]:
+                return True
+            return False
+
+        def get_saldo(self, idx_nasabah):
+            return self.nasabah[idx_nasabah]["saldo"]
+
+        def get_mutasi(self, idx_nasabah, n):
+            return self.nasabah[idx_nasabah]["history"][:-n:-1]
+
+        def get_history(self, idx_nasabah, n):
+            history = self.nasabah[idx_nasabah]["history"][::-1]
+            result = []
+            for data in history:
+                tgl_sekarang = datetime.date.today()
+                tgl_history = datetime.datetime.strptime(data["tanggal"], "%d/%m/%Y").date()
+                selisih = tgl_sekarang - tgl_history
+
+                if selisih > n:
+                    break
+
+                result.append(data)
+            return result[::-1]
+
+        def get_nasabah_by_nomor_kartu(self, nomor_kartu):
+            for idx_nasabah, nasabah in enumerate(self.nasabah):
+                if nomor_kartu == nasabah["nomor_kartu"]:
+                    return idx_nasabah
+            return None
+
+        def get_nasabah_by_nomor_rekening(self, nomor_rekening):
+            for idx_nasabah, nasabah in enumerate(self.nasabah):
+                if nomor_rekening == nasabah["nomor_rekening"]:
+                    return idx_nasabah, nasabah["nama"]
+            return None, None
+
+        def tarik_tunai(self, idx_nasabah, nominal):
+            if self.get_saldo(idx_nasabah) >= nominal:
+                self.nasabah[idx_nasabah]["saldo"] -= nominal
+                self.tambah_history(idx_nasabah, -nominal, "tarik tunai")
+                return True
+            return False
+
+        def transfer(self, idx_pengirim, idx_penerima, nominal):
+            if self.get_saldo(idx_pengirim) >= nominal:
+                self.nasabah[idx_pengirim]["saldo"] -= nominal
+                self.nasabah[idx_penerima]["saldo"] += nominal
+
+                self.tambah_history(idx_pengirim, -nominal, f"transfer ke {self.nasabah[idx_penerima]['nama']}")
+                self.tambah_history(idx_penerima, nominal, f"transfer dari {self.nasabah[idx_pengirim]['nama']}")
+                return True
+            return False
+
+    server.register_instance(ATMServer())
+    server.serve_forever()
+
